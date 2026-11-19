@@ -8,8 +8,8 @@ test:            ## chạy unit test (tiến độ của bạn: xanh hết = xon
 calibrate:       ## chạy 2 sweep và ghi submission/calibration/calibration_report.md
 	$(PY) -m pipeline.calibrate --sweep duplicates.phash_dist=2,4,6,8,10,12,14,16,20 --sweep second_opinion.conf=0.1,0.25,0.4,0.5,0.6,0.7,0.8 --out submission/calibration
 
-run:             ## MỘT LỆNH chạy cả pipeline. Kết luận 0/10/20 (Release/Hold/Rework) = make thành công (kết luận in ở cuối); mã khác = lỗi thật
-	$(PY) -m pipeline.run; rc=$$?; case $$rc in 0|10|20) exit 0;; *) echo "pipeline lỗi hoặc tạm dừng (mã $$rc)"; exit $$rc;; esac
+run:             ## MỘT LỆNH chạy pipeline và tạo submission/reports/report.html để xem nhanh
+	$(PY) -m pipeline.run; rc=$$?; $(PY) scripts/build_html_report.py; report_rc=$$?; if [ $$report_rc -ne 0 ]; then exit $$report_rc; fi; case $$rc in 0|10|20) exit 0;; *) echo "pipeline lỗi hoặc tạm dừng (mã $$rc)"; exit $$rc;; esac
 
 train:           ## train raw vs clean (cần GPU; nên chạy trên Colab)
 	$(PY) scripts/train_compare.py --variants raw clean --seeds 0 1 --epochs 20

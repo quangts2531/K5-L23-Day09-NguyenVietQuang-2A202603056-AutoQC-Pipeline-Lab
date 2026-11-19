@@ -1,36 +1,67 @@
-# Báo cáo Day 09 — <Họ và tên>, <MSHV>
-
-> Xoá mọi `TODO(học viên)` và dòng gợi ý. Mỗi ý trả lời bằng **số lấy từ `submission/reports/`**, kèm mẫu số. Cả báo cáo ~1–2 trang.
+# Báo cáo Day 09 — Nguyễn Viết Quang, 2A202603056
 
 ## 1. Kết luận trước
-TODO(học viên): pipeline kết luận **Release / Hold / Rework**? Bao nhiêu ảnh vào, bao nhiêu ảnh ra dataset? Lý do chính (1–3 câu).
+
+Pipeline kết luận **Hold**. Trong 224 ảnh raw, bước nhận dữ liệu loại 19 ảnh, còn 205 ảnh; cả 205 ảnh được xuất vào `clean_v1` dưới dạng bản Hold. Sau lượt duyệt mô phỏng 80 ảnh, còn 0 lỗi bắt buộc nhưng 38/205 ảnh vẫn có cảnh báo (18,54%), cao hơn ngưỡng 10%, nên bộ dữ liệu chưa được phát hành.
 
 ## 2. Lỗi và phân việc
-Lấy từ `02_error_list_v1` (gom theo mã lỗi). Cột "ai sửa": **máy** (autofix) hay **người** (hàng đợi); chỉ ghi những mã có mặt trong lô của bạn.
 
-| Mã lỗi | Số ảnh/dòng | Ai sửa (máy/người) | Vì sao |
+`02_error_list_v1.csv` có 208 dòng: 55 lỗi và 153 cảnh báo. Bảng ghi **số dòng / số ảnh**; `CLASS_RARE` là cảnh báo cấp dataset.
+
+| Mã lỗi | Dòng / ảnh | Ai xử lý | Phân tích |
 |---|---:|---|---|
-| TODO(học viên) | | | |
+| `BAD_CLASS_ID` | 6 / 6 | Máy | Bỏ dòng nhãn có ID lớp không hợp lệ. |
+| `BAD_CLASS_NAME` | 2 / 1 | Máy | Chuẩn hóa `Person`, `Bus` thành tên lớp đúng; 1 thay đổi `data.yaml`. |
+| `BAD_FORMAT` | 3 / 3 | Máy | Bỏ dòng nhãn sai định dạng. |
+| `BAD_SIZE` | 3 / 3 | Máy | Loại ảnh quá nhỏ ngay ở bước nhận dữ liệu. |
+| `BOX_HUGE` | 3 / 3 | Người | Xem ảnh để xác nhận box có bao gần toàn ảnh hợp lý không. |
+| `BOX_OUT_OF_IMAGE` | 8 / 8 | Máy | Cắt box vào trong ảnh (`clip_box`). |
+| `BOX_TINY` | 6 / 4 | Người | Kiểm tra box nhỏ có bám đúng vật không; 6 dòng nằm trên 4 ảnh. |
+| `BOX_ZERO` | 4 / 4 | Máy | Bỏ dòng có chiều rộng hoặc cao bằng 0. |
+| `CLASS_RARE` | 4 / 1 dataset | Máy gián tiếp | Thống kê ID lớp hiếm; các dòng ID sai được bỏ rồi thống kê lại. |
+| `CORRUPT_IMAGE` | 2 / 2 | Máy | Loại ảnh không đọc được ở bước nhận dữ liệu. |
+| `DUP_BOX` | 7 / 7 | Máy | Bỏ box trùng với box trước đó. |
+| `DUP_IMAGE_EXACT` | 8 / 8 | Máy | Loại ảnh trùng từng byte ở bước nhận dữ liệu. |
+| `DUP_IMAGE_NEAR` | 2 / 2 | Máy | Loại cặp ảnh trùng gần đúng được phát hiện. |
+| `EMPTY_LABEL` | 12 / 12 | Người | Mở ảnh để phân biệt ảnh nền với ảnh bị thiếu nhãn. |
+| `LEAK_TEST` | 4 / 4 | Máy | Loại ảnh trùng kho test/val để tránh rò rỉ dữ liệu. |
+| `MISSING_LABEL_FILE` | 6 / 6 | Người | Máy đưa vào hàng đợi (`needs_label`), không tự tạo nhãn. |
+| `POSSIBLE_FALSE_POS` | 29 / 27 | Người | So box với ảnh; mô hình có thể không nhận ra vật nhỏ hoặc khuất. |
+| `POSSIBLE_LOOSE_BOX` | 28 / 24 | Người | Đối chiếu vị trí và độ khít của box với vật. |
+| `POSSIBLE_MISSING` | 53 / 52 | Người | Xác nhận vật AI phát hiện có thật sự thiếu box nhãn không. |
+| `POSSIBLE_WRONG_CLASS` | 18 / 18 | Người | Đối chiếu lớp nhãn với loại vật trong ảnh. |
 
-TODO(học viên): vì sao `05_review_queue.csv` xếp ảnh đầu hàng như vậy? Với ngân sách 80 ảnh, người xem được bao nhiêu lỗi ngữ nghĩa?
+`03_fixes.csv` ghi 35 hành động: 20 bỏ dòng, 8 cắt box, 6 chuyển ảnh thiếu nhãn cho người và 1 chuẩn hóa `data.yaml`. Hàng đợi có 125 ảnh, ngân sách duyệt 80. Trong 80 ảnh ưu tiên đầu, 74 ảnh có ít nhất một cảnh báo ngữ nghĩa `POSSIBLE_*` (88 mã cảnh báo ngữ nghĩa cộng dồn; đây chưa phải 88 lỗi đã xác nhận). `img_0020` đứng đầu với điểm 11,524 vì có `POSSIBLE_MISSING`, `POSSIBLE_WRONG_CLASS` và một dòng bị máy loại; ảnh thiếu nhãn được cộng trọng số cao (`NEEDS_LABEL` = 10).
 
-## 3. Calibration (2 ngưỡng)
-| Tham số | Khởi đầu | Đã chọn | Precision / Recall (trước → sau) | Lý do (đánh đổi) |
-|---|---|---|---|---|
-| `duplicates.phash_dist` | 2 | TODO(học viên) | | |
-| `second_opinion.conf` | 0.25 | TODO(học viên) | | |
+## 3. Calibration
 
-TODO(học viên): **một chỗ calibration có thể đánh lừa bạn**, kèm bằng chứng từ dữ liệu của bạn (vd. mở xem vài cặp ảnh bị cho là trùng; số ảnh bị loại ở bước 1 có hợp lý không?).
+| Tham số | Ban đầu → đang dùng | Precision / Recall trước → sau | Lý do và đánh đổi |
+|---|---|---|---|
+| `duplicates.phash_dist` | 2 → **2** | Near duplicate: 1,00 / 0,50 → 1,00 / 0,50; exact duplicate: 1,00 / 1,00 → 1,00 / 1,00 | Giữ ngưỡng bảo thủ để tránh loại nhầm ảnh. Đổi lên 16 đạt recall near duplicate 0,83 trên calibration, nhưng cần xem các cặp ảnh raw trước khi chấp nhận ngưỡng rộng hơn. |
+| `second_opinion.conf` | 0,25 → **0,6** | `WRONG_CLASS`: 0,56 / 0,83 → 0,62 / 0,83; `MISSING`: 0,50 / 1,00 → 0,57 / 1,00; `LOOSE_BOX`: 0,29 / 0,40 → 0,20 / 0,20; `FALSE_POS`: 0,31 / 1,00 → 0,31 / 1,00 | Ngưỡng 0,6 cải thiện precision của hai nhóm đầu và giữ recall `MISSING`; đổi lại, `LOOSE_BOX` kém hơn. `FALSE_POS` không đổi vì dùng ngưỡng `fp_conf` riêng. |
 
-## 4. Cửa chặn và điều pipeline KHÔNG bắt được
-TODO(học viên): (a) chứng minh gate chặn đúng: chạy `python -m pipeline.run --budget 0 --reports work/rep_nb --export-dir work/exp_nb` (không có người duyệt nên ảnh thiếu file nhãn còn nguyên), chỉ ra kết luận **Rework**, mã thoát 20 và việc **không xuất** dataset. (Đừng sửa tay `work/run/ds`: pipeline dựng lại thư mục này từ raw mỗi lần chạy.) (b) ≥ 2 điểm mù có bằng chứng (box lỏng nhẹ, nhầm lớp mà model lớn cũng nhầm, ảnh trùng biến đổi mạnh…).
+Calibration có thể đánh lừa nếu tối ưu một nhóm lỗi trên tập nhỏ: chỉ có 6 near duplicate được chèn; ở `phash_dist=16`, recall tăng lên 5/6 nhưng chưa chứng minh ngưỡng đó an toàn cho toàn bộ ảnh raw. Tương tự, tại `conf=0,6`, `LOOSE_BOX` chỉ có 1 TP, 4 FP và 4 FN (precision/recall 0,20/0,20). Vì vậy điểm calibration là gợi ý để chọn ngưỡng, không thay thế việc xem ảnh.
 
-## 5. Train: raw vs clean (tùy chọn, chấm riêng)
-Chưa train: ghi "chưa chạy" và lý do, rồi bỏ qua phần còn lại của mục này. Nếu đã train: dán bảng từ `submission/results/comparison.md` (model, epoch, seed, số ảnh train mỗi biến thể).
+## 4. Cửa chặn và điểm mù
 
-TODO(học viên): chênh mAP50 (clean − raw) so với **độ lệch chuẩn giữa các seed**; kết luận **trung thực** (nằm trong nhiễu thì nói là chưa kết luận được); ≥ 2 giả thuyết giải thích (ảnh trùng/rò rỉ test trong `raw`, nhãn máy còn lại trong `clean`, test chỉ 100 ảnh…) và cách kiểm.
+Thí nghiệm budget 0 đã có kết quả ở `work/rep_nb/08_summary.json`: **Rework**, 6 lỗi bắt buộc trên 205 ảnh, 0 ảnh được duyệt, `exported: null`. Sáu lỗi là `MISSING_LABEL_FILE`; thư mục `work/exp_nb` không được tạo. `pipeline.run` ánh xạ Rework sang mã thoát **20**, nên cửa chặn đã ngăn xuất dataset khi chưa có người gán nhãn.
+
+Hai điểm mù có bằng chứng từ calibration:
+
+- `POSSIBLE_LOOSE_BOX` ở ngưỡng 0,6 chỉ tìm được 1/5 lỗi đã chèn và đồng thời có 4 cảnh báo sai. Cần người xem ảnh thay vì sửa box chỉ theo gợi ý của model.
+- `DUP_IMAGE_NEAR` ở `phash_dist=2` có recall 3/6 = 0,50, tức bỏ sót 3 cặp near duplicate đã chèn; một số dạng ảnh trùng khó hơn vẫn có thể lọt qua.
+- `POSSIBLE_FALSE_POS` có precision 0,31 (5 TP, 11 FP ở calibration), nên cảnh báo box thừa có thể do model không phát hiện được vật thật.
+
+## 5. Train: raw vs clean
+
+**Chưa chạy.** `submission/results/` hiện chưa có kết quả train hoặc `comparison.md`; train trên Colab là phần tùy chọn. Vì vậy chưa có cơ sở để kết luận mAP50 của clean tốt hơn raw.
 
 ## 6. Quyết định và ghi chú AI
-TODO(học viên): (a) quyết định cuối; nếu Hold/Rework cần làm gì để thành Release? (b) Dùng AI viết code? Ghi 3 dòng: prompt chính, cách bạn kiểm code AI, 1 lần AI sai. Không dùng: ghi "không dùng".
 
-*(Thưởng +2, tùy chọn)* CVAT: lọc `width < 20`, ảnh/số box khớp, đối chiếu `BOX_TINY` (xem docs/CVAT_FILTER.md), 1 câu về `can_review`.
+Quyết định hiện tại là **Hold**; `clean_v1` là bản xuất có trạng thái Hold, chưa phải bản phát hành. Cần kiểm tra 38 ảnh còn cảnh báo trong `reports/report.html`, sửa nhãn khi xác nhận có lỗi rồi chạy lại `make run`. Nhận xét lưu từ HTML là checklist, không tự cập nhật nhãn hay log pipeline. Để qua gate trên 205 ảnh, cần 0 lỗi bắt buộc và tối đa 20 ảnh chưa duyệt có cảnh báo (20/205 = 9,76%); tức cần xem/giải quyết ít nhất 18/38 ảnh nếu không phát sinh cảnh báo mới.
+
+- **Dùng AI:** Có. Prompt chính: “tạo HTML để kiểm tra báo cáo sau `make run`, hiện ảnh và lỗi để đối chiếu”; tiếp theo yêu cầu thêm bộ lọc và bảng ghi nhận kiểm tra.
+- **Cách kiểm:** Đối chiếu số liệu HTML với `08_summary.json` và CSV, xem lại quy tắc gate trong `pipeline/steps/gate.py`, rồi chạy script tạo HTML để cập nhật trang.
+- **Một lần AI sai:** Một phép đếm tạm thời đếm các dòng lỗi lồng trong dữ liệu ảnh thành 80 thay vì 38 ảnh chưa duyệt; đã sửa bằng cách đếm ảnh duy nhất và đối chiếu `06_review_log.csv`.
+
+**CVAT thưởng:** Chưa thực hiện; không tính điểm phần này.

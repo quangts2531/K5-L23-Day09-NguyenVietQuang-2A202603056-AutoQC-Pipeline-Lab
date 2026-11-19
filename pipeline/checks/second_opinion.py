@@ -35,10 +35,140 @@ Gợi ý
 - `iou_xywh` có sẵn. Dòng nhãn hỏng không được làm script chết (dùng `ds.valid_boxes` và `parse_yolo_line` trong try).
 - Kết quả phụ thuộc mạnh vào ngưỡng: calibrate chúng ở Bước 3 thay vì đoán.
 """
-from ..common import WARN, Issue, iou_xywh, parse_yolo_line  # noqa: F401
-from ..model_cache import get_preds  # noqa: F401
+import math
+
+from ..common import WARN, Issue, iou_xywh, parse_yolo_line
+from ..model_cache import get_preds
 
 
 def run(ds, cfg, preds=None):
-    # TODO
-    raise NotImplementedError("check second_opinion chưa làm")
+    if preds is None:
+        preds = get_preds(ds, cfg, "checker")
+
+    thresholds = cfg["second_opinion"]
+    min_conf = thresholds["conf"]
+    min_area_px = thresholds["min_area_px"]
+    fp_conf = thresholds["fp_conf"]
+    iou_missing = thresholds["iou_missing"]
+    iou_match = thresholds["iou_match"]
+    iou_loose = thresholds["iou_loose"]
+    issues = []
+
+    def normalized_predictions(rows):
+        """Return valid prediction rows as (class, conf, cx, cy, w, h)."""
+        result = []
+        for row in rows or []:
+            try:
+                raw_cls, raw_conf, cx, cy, width, height = row
+                raw_class_id = float(raw_cls)
+                conf, cx, cy, width, height = map(
+                    float, (raw_conf, cx, cy, width, height)
+                )
+            except (TypeError, ValueError, OverflowError):
+                continue
+            values = (conf, cx, cy, width, height)
+            if (
+                not math.isfinite(raw_class_id)
+                or not raw_class_id.is_integer()
+                or not all(math.isfinite(v) for v in values)
+            ):
+                continue
+            class_id = int(raw_class_id)
+            if width <= 0 or height <= 0:
+                continue
+            result.append((class_id, conf, cx, cy, width, height))
+        return result
+
+    for image_path in ds.image_files():
+        stem = image_path.stem
+        if stem not in preds:
+            continue
+        label_path = ds.label_path(stem)
+        if not label_path.is_file():
+            continue
+
+        # Keep original line numbers while excluding malformed rows and class
+        # IDs that Dataset.valid_boxes would reject.
+        label_rows = []
+        for line_no, text in ds.read_label_lines(stem) or []:
+            try:
+                box = parse_yolo_line(text)
+            except (TypeError, ValueError):
+                continue
+            if 0 <= box[0] < len(ds.classes):
+                label_rows.append((line_no, box))
+        labels = [box for _, box in label_rows]
+        all_predictions = normalized_predictions(preds[stem])
+
+        # Main review flags use the stricter confidence and minimum pixel area.
+        image_size = ds.image_size(stem)
+        if image_size is None:
+            width_px = height_px = None
+        else:
+            width_px, height_px = image_size
+        main_predictions = []
+        if width_px is not None:
+            main_predictions = [
+                prediction
+                for prediction in all_predictions
+                if prediction[1] >= min_conf
+                and prediction[4] * width_px * prediction[5] * height_px >= min_area_px
+            ]
+
+        for class_id, conf, cx, cy, width, height in main_predictions:
+            predicted_box = (cx, cy, width, height)
+            candidates = []
+            for label in labels:
+                overlap = iou_xywh(predicted_box, label[1:])
+                if overlap >= iou_missing:
+                    candidates.append((label, overlap))
+
+            if not candidates:
+                issues.append(Issue(
+                    "second_opinion", WARN, "POSSIBLE_MISSING", stem,
+                    f"model thấy lớp {class_id} (conf={conf:.3f}) nhưng không có box nhãn gần",
+                    extra={"conf": conf},
+                ))
+                continue
+
+            same_class = [iou for label, iou in candidates if label[0] == class_id]
+            if same_class:
+                best_iou = max(same_class)
+                if best_iou < iou_loose:
+                    issues.append(Issue(
+                        "second_opinion", WARN, "POSSIBLE_LOOSE_BOX", stem,
+                        f"box nhãn cùng lớp khớp lỏng (IoU={best_iou:.3f})",
+                        extra={"conf": conf, "iou": best_iou},
+                    ))
+                # A same-class candidate resolves this prediction even when a
+                # different class overlaps it more strongly.
+                continue
+
+            other_class = [iou for label, iou in candidates if label[0] != class_id]
+            if other_class and max(other_class) >= iou_match:
+                best_iou = max(other_class)
+                issues.append(Issue(
+                    "second_opinion", WARN, "POSSIBLE_WRONG_CLASS", stem,
+                    f"box khớp với lớp nhãn khác (IoU={best_iou:.3f})",
+                    extra={"conf": conf, "iou": best_iou},
+                ))
+
+        # False positives use every prediction above fp_conf, including small
+        # boxes that were excluded from the main missing/loose/wrong-class pass.
+        fp_predictions = [p for p in all_predictions if p[1] >= fp_conf]
+        false_positives = []
+        for line_no, label in label_rows:
+            best_iou = max(
+                (iou_xywh(label[1:], prediction[2:]) for prediction in fp_predictions),
+                default=0.0,
+            )
+            if best_iou < iou_missing:
+                false_positives.append(Issue(
+                    "second_opinion", WARN, "POSSIBLE_FALSE_POS", stem,
+                    f"box nhãn dòng {line_no} không khớp dự đoán đủ tin cậy (IoU tối đa={best_iou:.3f})",
+                    line=line_no,
+                    extra={"iou": best_iou},
+                ))
+        issues.extend(false_positives)
+
+    return issues

@@ -20,5 +20,50 @@ from ..common import ERROR, WARN  # noqa: F401
 
 
 def decide(issues, image_stems, cfg, reviewed=frozenset()):
-    # TODO
-    raise NotImplementedError("gate chưa làm")
+    stems = set(image_stems)
+    reviewed = set(reviewed)
+    n_images = len(stems)
+    n_errors = 0
+    warned_images = set()
+
+    for issue in issues:
+        # Chỉ xét issue gắn với ảnh hiện có trong dataset.
+        if issue.image not in stems:
+            continue
+
+        severity = str(issue.severity).lower()
+        if severity == ERROR:
+            # Ảnh đã review vẫn phải xử lý lỗi bắt buộc.
+            n_errors += 1
+        elif severity == WARN and issue.image not in reviewed:
+            warned_images.add(issue.image)
+
+    n_warn_images = len(warned_images)
+    raw_warn_ratio = n_warn_images / n_images if n_images else 0.0
+    warn_ratio = round(raw_warn_ratio, 4)
+    hold_threshold = cfg["gate"]["warn_ratio_hold"]
+
+    if n_errors:
+        decision = "Rework"
+        reasons = [f"Có {n_errors} lỗi bắt buộc trên {n_images} ảnh; cần sửa trước khi chạy lại pipeline."]
+    elif raw_warn_ratio >= hold_threshold:
+        decision = "Hold"
+        reasons = [
+            f"Cảnh báo còn trên {n_warn_images}/{n_images} ảnh ({raw_warn_ratio:.2%}), "
+            f"đạt hoặc vượt ngưỡng giữ {hold_threshold:.2%}; cần người xem xét."
+        ]
+    else:
+        decision = "Release"
+        reasons = [
+            f"Không còn lỗi bắt buộc; cảnh báo còn trên {n_warn_images}/{n_images} ảnh "
+            f"({raw_warn_ratio:.2%}), thấp hơn ngưỡng giữ {hold_threshold:.2%}."
+        ]
+
+    return {
+        "decision": decision,
+        "n_errors": n_errors,
+        "n_warn_images": n_warn_images,
+        "n_images": n_images,
+        "warn_ratio": warn_ratio,
+        "reasons": reasons,
+    }
