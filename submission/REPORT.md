@@ -54,7 +54,16 @@ Hai điểm mù có bằng chứng từ calibration:
 
 ## 5. Train: raw vs clean
 
-**Chưa chạy.** `submission/results/` hiện chưa có kết quả train hoặc `comparison.md`; train trên Colab là phần tùy chọn. Vì vậy chưa có cơ sở để kết luận mAP50 của clean tốt hơn raw.
+Hai biến thể dùng cùng `yolo26n.pt`, 20 epoch, batch 16, imgsz 640, cùng thiết bị và seed 0/1; đánh giá trên cùng test. Hash manifest của cả hai kết quả `clean` khớp `submission/export/clean_v1/manifest.json`.
+
+| Biến thể | Ảnh train | mAP50 (TB ± SD) | mAP50-95 (TB ± SD) | Precision (TB ± SD) | Recall (TB ± SD) |
+|---|---:|---:|---:|---:|---:|
+| raw | 224 | 0,726 ± 0,000 | 0,512 ± 0,004 | 0,764 ± 0,061 | 0,649 ± 0,028 |
+| clean | 205 | 0,700 ± 0,030 | 0,486 ± 0,013 | 0,715 ± 0,073 | 0,615 ± 0,017 |
+
+Chênh mAP50 (clean − raw) là **−0,025** (seed 0: 0,6788; seed 1: 0,7219). Mức giảm này nhỏ hơn độ lệch chuẩn giữa hai seed của clean (0,030), nên với hai seed chưa thể kết luận clean tốt hơn hay kém hơn; chỉ thấy xu hướng trung bình thấp hơn trong thí nghiệm này.
+
+Hai nguyên nhân cần kiểm tra thêm: (1) raw còn 4 ảnh `LEAK_TEST` theo `01_intake.csv`, nên có thể làm điểm test raw cao giả tạo; chạy lại đối chứng raw sau khi loại đúng các ảnh rò rỉ. (2) clean có ít hơn raw 19 ảnh và vẫn Hold với 38/205 ảnh còn cảnh báo; AP50 lớp truck giảm từ khoảng 0,648 xuống 0,559. Đối chiếu số box theo lớp giữa raw/clean và kiểm tra nhãn truck trong các ảnh bị cảnh báo. Test chỉ có 100 ảnh và mới có hai seed, nên cần thêm seed hoặc tập test lớn hơn trước khi kết luận chắc chắn.
 
 ## 6. Quyết định và ghi chú AI
 
